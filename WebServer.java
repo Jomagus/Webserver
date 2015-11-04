@@ -84,16 +84,37 @@ final class HttpRequest implements Runnable
             processHttpRequest();
         } catch (Exception e) {
             System.err.println("Unbekannter Fehler beim bearbeiten einer Anfrage aufgetreten. Beende bearbeitung dieses Clients...");
-            //TODO hier Thread sicher beenden lassen (Sockets schliessen etc.)
+        } finally {
+            if (!ClientSocket.isClosed()) {
+                try {
+                    ClientSocket.close();
+                } catch (IOException e) {
+                    System.err.println("Probleme beim schliessen des Sockets. Daumen druecken und durch...");
+                }
+            }
         }
     }
 
     private void processHttpRequest() throws Exception
     {
         // Wir oeffnen Input- und Outputstreams zu unserem Client
-        InputStream ClientInputStream = ClientSocket.getInputStream();
-        DataOutputStream ClientDataOutputStream = new DataOutputStream(ClientSocket.getOutputStream());
-        //TODO IO-Exceptions von dem Stream oeffnen abfangen
+        InputStream ClientInputStream = null;
+        DataOutputStream ClientDataOutputStream = null;
+
+        try {
+            ClientInputStream = ClientSocket.getInputStream();
+            ClientDataOutputStream = new DataOutputStream(ClientSocket.getOutputStream());
+        } catch (IOException e) {
+            System.err.println("Probleme beim aufbauen von Streams zum Client. Breche ab...");
+            ClientSocket.close();
+            return;
+        } finally {
+            if (ClientInputStream == null || ClientDataOutputStream == null) {
+                System.err.println("Seltsame Probleme beim aufbauen von Streams zum Client. Breche ab...");
+                ClientSocket.close();
+                return;
+            }
+        }
 
         // Wir dekodieren den ClientInputStream und wrappen um ihn einen BufferedReader
         BufferedReader ClientBufferedReader = new BufferedReader(new InputStreamReader(ClientInputStream));
@@ -108,6 +129,16 @@ final class HttpRequest implements Runnable
         System.out.println();
         System.out.println(requestLine);
 
+        // Get and display the header lines.
+        String headerLine = null;
+        while ((headerLine = ClientBufferedReader.readLine()).length() != 0) {
+            System.out.println(headerLine);
+        }
 
+        // Wir schliessen all unsere Streams und den Socket
+        ClientDataOutputStream.close();
+        ClientBufferedReader.close();
+        ClientInputStream.close();
+        ClientSocket.close();
     }
 }
