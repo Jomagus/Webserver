@@ -294,6 +294,45 @@ final class HttpRequest implements Runnable
     }
 
     /**
+     * Generiert einen Header fuer GET oder HEAD Anfrage mit dem gegebenen URI.
+     * @param RequestURI die URI aus der Anfrage
+     * @return Den Header fuer die betreffende Anfrage
+     */
+    private String HoleHEADer(String RequestURI) {
+        // Die URI ist eine Pfadangabe zur gewuenschten Datei. Der Punkt ist um sie aufs aktuelle Verzeichniss zu zentieren.
+        String DateiName = RequestURI;
+        DateiName = "." + DateiName;
+
+        // Wir muessen nun schauen, ob diese Datei existiert. (Aber nicht oeffnen, diese Methode ist nur fuer den Header.)
+        File DateiZumUeberpruefen = new File(DateiName);
+        boolean DateiExistiert = DateiZumUeberpruefen.exists() && !DateiZumUeberpruefen.isDirectory();
+
+        // Wir antworten nur mit HTTP/1.0
+        String Statusline = "HTTP/1.0 ";
+        String ContentTypeLine = "Content-type: ";
+        if (DateiExistiert) {
+            Statusline += "200 OK" + CRLF;
+
+            //TODO das hier neu und richtig machen
+
+            // Wir holen uns die Dateieindung
+            String[] DateiEndungsArray = DateiName.split(".");
+            String DateiEndung = DateiEndungsArray[DateiEndungsArray.length-1];
+
+            ContentTypeLine += MimeMap.get(DateiEndung) + CRLF;
+
+        } else {
+            Statusline += "404 Not Found" + CRLF;
+
+        }
+
+
+
+    }
+
+
+
+    /**
      * Versucht alle noch offenen Streams und den Socket zu schliessen.
      */
     private void BrecheAllesAb() {
@@ -337,8 +376,4 @@ final class HttpRequest implements Runnable
             System.err.println("Manche Verbindungen konnten nicht terminiert werden. Bei Problemen starten sie den Server neu");
         }
     }
-
-
-
-
 }
