@@ -243,6 +243,7 @@ final class HttpRequest implements Runnable
             GeteilteRequestZeile = RequestZeile.split("\\s");
 
             // Wir speichern die komplette Anfrage, aber ohne Requestzeile, in einer Hashmap
+            //TODO testen ob wir hier bei /r/n /r/n hintereinander Abbrechen und extra Speichern (fuer POST)
             while ((AnfrageZeile = ClientBufferedReader.readLine()).length() != 0) {
                 GeteilteAnfrageZeile = AnfrageZeile.split("\\s+", 2);
                 if (GeteilteAnfrageZeile.length == 2) {
