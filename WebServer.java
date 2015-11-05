@@ -201,6 +201,7 @@ final class HttpRequest implements Runnable
         } finally {
             if (ClientInputStream == null || ClientDataOutputStream == null) {
                 System.err.println("Seltsame Probleme beim aufbauen von Streams zum Client. Breche ab...");
+                //TODO testen ob streams geclosed werden muessen
                 ClientSocket.close();
                 return;
             }
@@ -209,26 +210,49 @@ final class HttpRequest implements Runnable
         // Wir dekodieren den ClientInputStream und wrappen um ihn einen BufferedReader
         BufferedReader ClientBufferedReader = new BufferedReader(new InputStreamReader(ClientInputStream));
 
+        String RequestZeile;
+        String AnfrageZeile;
+        Map AnfrageMap = new HashMap<>(10);
 
+        try {
+            // Wir holen uns die Request Zeile
+            RequestZeile = ClientBufferedReader.readLine();
 
-
-        // Get the request line of the HTTP request message.
-        String requestLine = ClientBufferedReader.readLine();
-
-        // Display the request line.
-        System.out.println();
-        System.out.println(requestLine);
-
-        // Get and display the header lines.
-        String headerLine = null;
-        while ((headerLine = ClientBufferedReader.readLine()).length() != 0) {
-            System.out.println(headerLine);
+            // Wir speichern die komplette Anfrage, aber ohne Requestzeile, in einer Hashmap
+            while ((AnfrageZeile = ClientBufferedReader.readLine()).length() != 0) {
+                //MeinZeichenSetzer.append(AnfrageZeile + "\n");
+                String[] GeteilteAnfrageZeile = AnfrageZeile.split("\\s+", 2);
+                if (GeteilteAnfrageZeile.length == 2) {
+                    AnfrageMap.put(GeteilteAnfrageZeile[0], GeteilteAnfrageZeile[1]);
+                }
+            }
+        } catch (IOException e) {
+            System.err.println("Probleme beim lesen von Streams zum Client. Breche ab...");
+            try {
+                ClientBufferedReader.close();
+                ClientDataOutputStream.close();
+                ClientSocket.close();
+            } catch (IOException ex) {
+                System.err.println("Mehr Probleme beim lesen von Streams zum Client. Breche haerter ab...");
+                ClientSocket.close();
+            }
         }
 
+
+
+
+
+
+
+
         // Wir schliessen all unsere Streams und den Socket
-        ClientDataOutputStream.close();
-        ClientBufferedReader.close();
-        ClientInputStream.close();
-        ClientSocket.close();
+        try {
+            ClientDataOutputStream.close();
+            ClientBufferedReader.close();
+            ClientSocket.close();
+        } catch (IOException e) {
+            System.err.println("Probleme beim schliessen der Streams/des Sockets. Breche ab...");
+            return;
+        }
     }
 }
