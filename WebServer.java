@@ -124,7 +124,7 @@ public final class WebServer
         /* Wir erstellen unsere Hashmap. Sie wird dynamisch hochskalieren ind groesse wenn benoetigt.
         * Der Skalierungsfaktor gibt an, wieviel groesser unsere Hashmap als die Zeilenzahl wird. Man moechte eine
         * 30-40% groessere Hashmap haben als Eintraege vorhanden sind, um Kollisionen zu reduzieren und die
-        * Zugriffszeiten zu verkleinern. Wir gehen von etwas mehr als einer Dateiendung pro Zeile in der
+        * Zugriffszeiten zu verkleinern. Wir gehen von etwas weniger als einer Dateiendung pro Zeile in der
         * Mime Datei aus. */
         double SkalierungsFaktor = 1.1;
         double SkalierteGroesse = SkalierungsFaktor*ZeilenAnzahl;
@@ -166,8 +166,14 @@ final class HttpRequest implements Runnable
      */
     Socket ClientSocket;
 
+    /**
+     * Map mit Mime Types um in O(1) passende Typ fuer Antwort zu finden.
+     */
     Map MimeMap;
 
+    /**
+     * Wir speichern unsere Streams Klassenweit, damit wir die Fehlerbehandlung modularisieren und auslagern koennen.
+     */
     BufferedReader ClientBufferedReader;
     DataOutputStream ClientDataOutputStream;
 
@@ -185,13 +191,8 @@ final class HttpRequest implements Runnable
         } catch (Exception e) {
             System.err.println("Unbekannter Fehler beim bearbeiten einer Anfrage aufgetreten. Beende bearbeitung dieses Clients...");
         } finally {
-            if (!ClientSocket.isClosed()) {
-                try {
-                    ClientSocket.close();
-                } catch (IOException e) {
-                    System.err.println("Probleme beim schliessen des Sockets. Daumen druecken und durch...");
-                }
-            }
+            // Wir schliessen all unsere Streams und den Socket
+            BrecheAllesAb();
         }
     }
 
@@ -205,13 +206,18 @@ final class HttpRequest implements Runnable
             ClientDataOutputStream = new DataOutputStream(ClientSocket.getOutputStream());
         } catch (IOException e) {
             System.err.println("Probleme beim aufbauen von Streams zum Client. Breche ab...");
+            if (!ClientSocket.isInputShutdown() && ClientInputStream != null) {
+                ClientInputStream.close();
+            }
+            if (!ClientSocket.isOutputShutdown() && ClientDataOutputStream != null) {
+                ClientDataOutputStream.close();
+            }
             ClientSocket.close();
             return;
         } finally {
             if (ClientInputStream == null || ClientDataOutputStream == null) {
                 System.err.println("Seltsame Probleme beim aufbauen von Streams zum Client. Breche ab...");
-                //TODO testen ob streams geclosed werden muessen
-                ClientSocket.close();
+                BrecheAllesAb();
                 return;
             }
         }
@@ -261,36 +267,61 @@ final class HttpRequest implements Runnable
             }
         }
 
+        //************************************************
+        // Ab hier beginnt die Bearbeitung der Anfrage
+        //************************************************
+
         if (GeteilteRequestZeile.length != 3) {
+            //TODO evtl Error 400 Bad Request
             System.out.println("Ungueltigen Request-Line bekommen. Breche ab...");
             BrecheAllesAb();
             return;
         }
 
+        String Header;
+
         switch (GeteilteRequestZeile[0]) {
             case "GET":
+                Header = HoleHEADer(GeteilteRequestZeile[1]);
+                // Wir schauen ob die Datei nicht existiert und senden dann eine 404 Seite
+                if (Header.startsWith("HTTP/1.0 404")) {
+                    //TODO konstruiere 404 Site
+                    return;
+                }
+
+                //Falls die Datei existiert, bereiten wir sie fuer den Versand vor
+                String DateiName = "." + GeteilteRequestZeile[1];
+                File GeforderteDatei = new File(DateiName);
+
+
+
+
+
+
                 break;
             case "HEAD":
+                Header = HoleHEADer(GeteilteRequestZeile[1]);
+                try {
+                    // Hier versenden wir den geforderten Header und flushen zur Sicherheit (close flusht auch)
+                    ClientDataOutputStream.writeBytes(Header);
+                    ClientDataOutputStream.writeBytes(CRLF);
+                    ClientDataOutputStream.flush();
+                } catch (IOException e) {
+                    System.err.println("Fehler beim Senden einer HEAD Anfrage. Breche ab...");
+                }
                 break;
             case "POST":
                 break;
             default:
-                System.out.println("Ungueltige Request-Method bekommen. Breche ab...");
-                BrecheAllesAb();
-                return;
+                Header = "HTTP/1.0 501 Not Implemented";
+                try {
+                    ClientDataOutputStream.writeBytes(Header);
+                    ClientDataOutputStream.writeBytes(CRLF);
+                    ClientDataOutputStream.flush();
+                } catch (IOException e) {
+                    System.err.println("Fehler beim Senden eines 501 Fehlers. Breche ab...");
+                }
         }
-
-
-
-
-
-
-
-
-
-
-        // Wir schliessen all unsere Streams und den Socket
-        BrecheAllesAb();
     }
 
     /**
@@ -305,32 +336,60 @@ final class HttpRequest implements Runnable
 
         // Wir muessen nun schauen, ob diese Datei existiert. (Aber nicht oeffnen, diese Methode ist nur fuer den Header.)
         File DateiZumUeberpruefen = new File(DateiName);
-        boolean DateiExistiert = DateiZumUeberpruefen.exists() && !DateiZumUeberpruefen.isDirectory();
+
+        boolean FehlerVerboten = false;
+        boolean DateiExistiert = false;
+
+        try {
+            DateiExistiert = DateiZumUeberpruefen.exists() && !DateiZumUeberpruefen.isDirectory();
+        } catch (SecurityException e) {
+            FehlerVerboten = true;
+        }
 
         // Wir antworten nur mit HTTP/1.0
         String Statusline = "HTTP/1.0 ";
+
+        // Wir geben den Mime Type der Datei im Responde-Header zurueck
         String ContentTypeLine = "Content-type: ";
         if (DateiExistiert) {
             Statusline += "200 OK" + CRLF;
-
-            //TODO das hier neu und richtig machen
-
-            // Wir holen uns die Dateieindung
-            String[] DateiEndungsArray = DateiName.split(".");
-            String DateiEndung = DateiEndungsArray[DateiEndungsArray.length-1];
-
-            ContentTypeLine += MimeMap.get(DateiEndung) + CRLF;
-
+            ContentTypeLine += contentType(DateiName) + CRLF;
+        } else if (FehlerVerboten) {
+            Statusline += "403 Forbidden" + CRLF;
+            ContentTypeLine += "text/html" + CRLF;
         } else {
             Statusline += "404 Not Found" + CRLF;
-
+            ContentTypeLine += "text/html" + CRLF;
         }
 
-
-
+        // Der fertige Header besteht aus Statusline und Headerline
+        return Statusline + ContentTypeLine;
     }
 
+    /**
+     * Liefert den Mime-Type zu einer Datei.
+     * @param DateiName Der Dateiname
+     * @return Den zur Dateiendung der Datei gehoerenden Mime Type
+     */
+    private String contentType(String DateiName) {
+        // Zunaechst muessen wir vom Dateinamen auf die Dateiendung kommen
+        int PunktPosition = DateiName.lastIndexOf(".");
+        String DateiEndung;
+        try {
+            DateiEndung = DateiName.substring(PunktPosition+1);
+        } catch (IndexOutOfBoundsException e) {
+            DateiEndung = "";
+        }
 
+        // Nun muessen wir nur noch unsere Mime Type in der HashMap suchen (in O(1))
+        String MimeType = (String) MimeMap.get(DateiEndung);
+        //Falls kein MimeType gefunden worden ist, geben wir die geforderte Standartantwort
+        if (MimeType == null) {
+            MimeType = "application/octet-stream";
+        }
+
+        return MimeType;
+    }
 
     /**
      * Versucht alle noch offenen Streams und den Socket zu schliessen.
@@ -346,6 +405,13 @@ final class HttpRequest implements Runnable
                     ClientBufferedReader.close();
                 } catch (IOException e) {
                     System.err.println("Fehler beim schliessen des Bufferedreaders.");
+                    Errorflag = true;
+                }
+            } else {
+                try {
+                    ClientSocket.getInputStream().close();
+                } catch (IOException e) {
+                    System.err.println("Fehler beim schliessen des Inputstreams.");
                     Errorflag = true;
                 }
             }
