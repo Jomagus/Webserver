@@ -172,6 +172,11 @@ final class HttpRequest implements Runnable
     Map MimeMap;
 
     /**
+     * Map mit Metadaten aus der Anfrage.
+     */
+    Map AnfrageMap;
+
+    /**
      * Wir speichern unsere Streams Klassenweit, damit wir die Fehlerbehandlung modularisieren und auslagern koennen.
      */
     BufferedReader ClientBufferedReader;
@@ -228,7 +233,7 @@ final class HttpRequest implements Runnable
         // Mit diesen Variablen speichern wir unsere Anfrage
         String RequestZeile;
         String AnfrageZeile;
-        Map AnfrageMap = new HashMap<>(10);
+        AnfrageMap = new HashMap<>(10);
         String[] GeteilteRequestZeile = null;
         String[] GeteilteAnfrageZeile = null;
 
@@ -274,10 +279,13 @@ final class HttpRequest implements Runnable
         String Header;
 
         if (GeteilteRequestZeile.length != 3) {
-            Header = "HTTP/1.0 400 Bad Request";
+            Header = "HTTP/1.0 400 Bad Request" + CRLF + "Content-type: text/html" + CRLF;
+            String FehlerSeite = GeneriereErrorSeite("400 Bad Request");
             try {
+                // Hier versenden wir den geforderten Header, eine Fehlerseite und flushen zur Sicherheit (close flusht auch)
                 ClientDataOutputStream.writeBytes(Header);
                 ClientDataOutputStream.writeBytes(CRLF);
+                ClientDataOutputStream.writeBytes(FehlerSeite);
                 ClientDataOutputStream.flush();
             } catch (IOException e) {
                 System.err.println("Fehler beim Senden eines 400 Fehlers. Breche ab...");
@@ -290,32 +298,12 @@ final class HttpRequest implements Runnable
                 Header = HoleHEADer(GeteilteRequestZeile[1]);
                 // Wir schauen ob die Datei nicht existiert und senden dann eine 404 Seite; bei Zugriffsverletzung 403 Seite
                 if (Header.startsWith("HTTP/1.0 40")) {
-                    // Wir bereiten zunachst die Fehlerseiten vor
                     String FehlerSeite = "";
 
-                    // Wir besorgen gewuenschte Informationen fuer die Fehlerseite
-                    String ClientIP = ClientSocket.getInetAddress().toString();
-                    if (ClientIP == null) {
-                        ClientIP = "Unbekannt";
-                    }
-
-                    String UserAgent = AnfrageMap.get("User-Agent:").toString();
-                    if (UserAgent == null) {
-                        UserAgent = "Unbekannt";
-                    }
-
                     if (Header.startsWith("HTTP/1.0 404")) {
-                        FehlerSeite = "<HTML><HEAD><TITLE>404 Not Found</TITLE></HEAD>"
-                                +"<BODY>404 Not Found<br>"
-                                +"Aufrufende Client IP: " + ClientIP
-                                +"<br>User Agent: " + UserAgent
-                                +"</BODY></HTML>";
+                        FehlerSeite = GeneriereErrorSeite("404 Not Found");
                     } else if (Header.startsWith("HTTP/1.0 403")) {
-                        FehlerSeite = "<HTML><HEAD><TITLE>403 Forbidden</TITLE></HEAD>"
-                                +"<BODY>403 Forbidden<br>"
-                                +"Aufrufende Client IP: " + ClientIP
-                                +"<br>User Agent: " + UserAgent
-                                +"</BODY></HTML>";
+                        FehlerSeite = GeneriereErrorSeite("403 Forbidden");
                     }
 
                     // Und senden dann alles
@@ -366,7 +354,6 @@ final class HttpRequest implements Runnable
             case "HEAD":
                 Header = HoleHEADer(GeteilteRequestZeile[1]);
                 try {
-                    // Hier versenden wir den geforderten Header und flushen zur Sicherheit (close flusht auch)
                     ClientDataOutputStream.writeBytes(Header);
                     ClientDataOutputStream.writeBytes(CRLF);
                     ClientDataOutputStream.flush();
@@ -375,7 +362,33 @@ final class HttpRequest implements Runnable
                 }
                 break;
             case "POST":
-                //TODO Post Request
+                // Falls der Request keine gueltige Content-Length Angabe macht, wird Error 400 ausgegeben
+                boolean GueltigeAnfrage = false;
+                if (AnfrageMap.containsKey("Content-Length:")) {
+                    int InhaltsLaenge = Integer.parseInt((String) AnfrageMap.get("Content-Length:"));
+                    if (InhaltsLaenge >= 0) {
+                        GueltigeAnfrage = true;
+                    }
+                }
+
+                if (!GueltigeAnfrage) {
+                    Header = "HTTP/1.0 400 Bad Request" + CRLF + "Content-type: text/html" + CRLF;
+                    String FehlerSeite = GeneriereErrorSeite("400 Bad Request");
+                    try {
+                        ClientDataOutputStream.writeBytes(Header);
+                        ClientDataOutputStream.writeBytes(CRLF);
+                        ClientDataOutputStream.writeBytes(FehlerSeite);
+                        ClientDataOutputStream.flush();
+                    } catch (IOException e) {
+                        System.err.println("Fehler beim Senden eines 400 Fehlers. Breche ab...");
+                    }
+                    return;
+                }
+
+                // Nun bearbeiten wir die eigentlich Anfrage
+
+                //TODO lese POST Daten aus Buffered Writer und gebe bei falschem Content-Type Error aus
+
                 break;
             default:
                 Header = "HTTP/1.0 501 Not Implemented";
@@ -432,7 +445,40 @@ final class HttpRequest implements Runnable
     }
 
     /**
+     * Liefert einen String mit HTML Code fuer eine Fehlerseite.
+     * Ebenso werden Clientverbindungsinformationen mit eingebettet.
+     *
+     * @param FehlerTitel Der Titel der Fehlerseite
+     * @return Eine HTML Fehlerseite
+     */
+    private String GeneriereErrorSeite(String FehlerTitel) {
+        // Wir besorgen gewuenschte Informationen fuer die Fehlerseite
+        String ClientIP = ClientSocket.getInetAddress().toString();
+        if (ClientIP == null) {
+            ClientIP = "Unbekannt";
+        }
+
+        String UserAgent = AnfrageMap.get("User-Agent:").toString();
+        if (UserAgent == null) {
+            UserAgent = "Unbekannt";
+        }
+
+        // Und genieren dann die Fehlerseite
+        String FehlerSeite = "<HTML><HEAD><TITLE>"
+                + FehlerTitel
+                +"</TITLE></HEAD><BODY>"
+                + FehlerTitel
+                +"<br>"
+                +"Aufrufende Client IP: " + ClientIP
+                +"<br>User Agent: " + UserAgent
+                +"</BODY></HTML>";
+
+        return FehlerSeite;
+    }
+
+    /**
      * Liefert den Mime-Type zu einer Datei.
+     *
      * @param DateiName Der Dateiname
      * @return Den zur Dateiendung der Datei gehoerenden Mime Type
      */
