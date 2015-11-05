@@ -271,33 +271,97 @@ final class HttpRequest implements Runnable
         // Ab hier beginnt die Bearbeitung der Anfrage
         //************************************************
 
+        String Header;
+
         if (GeteilteRequestZeile.length != 3) {
-            //TODO evtl Error 400 Bad Request
-            System.out.println("Ungueltigen Request-Line bekommen. Breche ab...");
-            BrecheAllesAb();
+            Header = "HTTP/1.0 400 Bad Request";
+            try {
+                ClientDataOutputStream.writeBytes(Header);
+                ClientDataOutputStream.writeBytes(CRLF);
+                ClientDataOutputStream.flush();
+            } catch (IOException e) {
+                System.err.println("Fehler beim Senden eines 400 Fehlers. Breche ab...");
+            }
             return;
         }
-
-        String Header;
 
         switch (GeteilteRequestZeile[0]) {
             case "GET":
                 Header = HoleHEADer(GeteilteRequestZeile[1]);
-                // Wir schauen ob die Datei nicht existiert und senden dann eine 404 Seite
-                if (Header.startsWith("HTTP/1.0 404")) {
-                    //TODO konstruiere 404 Site
+                // Wir schauen ob die Datei nicht existiert und senden dann eine 404 Seite; bei Zugriffsverletzung 403 Seite
+                if (Header.startsWith("HTTP/1.0 40")) {
+                    // Wir bereiten zunachst die Fehlerseiten vor
+                    String FehlerSeite = "";
+
+                    // Wir besorgen gewuenschte Informationen fuer die Fehlerseite
+                    String ClientIP = ClientSocket.getInetAddress().toString();
+                    if (ClientIP == null) {
+                        ClientIP = "Unbekannt";
+                    }
+
+                    String UserAgent = AnfrageMap.get("User-Agent:").toString();
+                    if (UserAgent == null) {
+                        UserAgent = "Unbekannt";
+                    }
+
+                    if (Header.startsWith("HTTP/1.0 404")) {
+                        FehlerSeite = "<HTML><HEAD><TITLE>404 Not Found</TITLE></HEAD>"
+                                +"<BODY>404 Not Found<br>"
+                                +"Aufrufende Client IP: " + ClientIP
+                                +"<br>User Agent: " + UserAgent
+                                +"</BODY></HTML>";
+                    } else if (Header.startsWith("HTTP/1.0 403")) {
+                        FehlerSeite = "<HTML><HEAD><TITLE>403 Forbidden</TITLE></HEAD>"
+                                +"<BODY>403 Forbidden<br>"
+                                +"Aufrufende Client IP: " + ClientIP
+                                +"<br>User Agent: " + UserAgent
+                                +"</BODY></HTML>";
+                    }
+
+                    // Und senden dann alles
+                    try {
+                        ClientDataOutputStream.writeBytes(Header);
+                        ClientDataOutputStream.writeBytes(CRLF);
+                        ClientDataOutputStream.writeBytes(FehlerSeite);
+                        ClientDataOutputStream.flush();
+                    } catch (Exception e) {
+                        System.err.println("Fehler beim Senden einer GET Anfrage. Breche ab...");
+                    }
                     return;
                 }
 
-                //Falls die Datei existiert, bereiten wir sie fuer den Versand vor
+                //Falls die Datei existiert, bereiten wir sie fuer den Versand vor, dazu oeffnen wir einen Filestream
                 String DateiName = "." + GeteilteRequestZeile[1];
-                File GeforderteDatei = new File(DateiName);
 
+                FileInputStream DateiStrom = null;
+                try {
+                    DateiStrom = new FileInputStream(DateiName);
+                } catch (Exception e) {
+                    System.err.println("Datei ist magisch. Ein Einhorn wird sie gestohlen oder versteckt haben. Breche ab...");
+                    return;
+                }
 
+                // Wir erstellen noch einen Buffer fuer die eigentliche Datei
+                byte[] Buffer = new byte[1024];
+                int bytes = 0;
 
-
-
-
+                // Nun versenden wir alle Daten
+                try {
+                    ClientDataOutputStream.writeBytes(Header);
+                    ClientDataOutputStream.writeBytes(CRLF);
+                    while((bytes = DateiStrom.read(Buffer)) != -1 ) {
+                        ClientDataOutputStream.write(Buffer, 0, bytes);
+                    }
+                    ClientDataOutputStream.flush();
+                } catch (Exception e) {
+                    System.err.println("Fehler beim Senden einer GET Anfrage. Breche ab...");
+                } finally {
+                    try {
+                        DateiStrom.close();
+                    } catch (IOException e) {
+                        System.err.println("Fehler beim schliessen eines Dateistroms. Breche ab...");
+                    }
+                }
                 break;
             case "HEAD":
                 Header = HoleHEADer(GeteilteRequestZeile[1]);
@@ -311,6 +375,7 @@ final class HttpRequest implements Runnable
                 }
                 break;
             case "POST":
+                //TODO Post Request
                 break;
             default:
                 Header = "HTTP/1.0 501 Not Implemented";
