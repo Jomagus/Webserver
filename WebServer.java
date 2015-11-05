@@ -1,10 +1,8 @@
 import java.io.* ;
 import java.net.* ;
 import java.util.* ;
+import java.util.concurrent.ConcurrentHashMap;
 
-/**
- *
- */
 public final class WebServer
 {
     /**
@@ -14,6 +12,23 @@ public final class WebServer
 
     public static void main(String argv[]) throws Exception
     {
+        // Wir parsen zuerst die Argumente der Kommandozeile
+
+        ConcurrentHashMap MimeTypen = null;
+        if (argv.length > 0) {
+            if (argv[0].contentEquals("-mime")) {
+                if (argv.length == 2) {
+                    //TODO parsen und automatische groessenwahl der Hasmap
+                    MimeTypen = new ConcurrentHashMap(100);
+                } else {
+                    System.out.println("Ungueltige Anzahl an Argumenten uebergeben. Ignoriere sie...")
+                }
+            } else {
+                System.out.println("Ungueltige Argumente uebergeben. Ignoriere sie...");
+            }
+        }
+
+
         // Wir öffnen hier einen neuen Serversocket der auf eingehende Verbindungen wartet
 
         ServerSocket PrimaerSocket = null;
