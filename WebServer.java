@@ -31,6 +31,8 @@ public final class WebServer
             }
         }
 
+        //TODO Fallback Mimetypes implementieren
+
 
         // Wir öffnen hier einen neuen Serversocket der auf eingehende Verbindungen wartet
 
@@ -73,7 +75,7 @@ public final class WebServer
             }
 
             // wir lagern die Anfrageverarbeitung in die HttpRequest Klasse aus
-            HttpRequest AnfragenBearbeiter = new HttpRequest(SekundaerSocket);
+            HttpRequest AnfragenBearbeiter = new HttpRequest(SekundaerSocket, MimeTypen);
             Thread AnfragenBearbeiterThread = new Thread(AnfragenBearbeiter);
             AnfragenBearbeiterThread.start();
         }
@@ -164,8 +166,16 @@ final class HttpRequest implements Runnable
      */
     Socket ClientSocket;
 
-    HttpRequest(Socket AnfragenSocket) {
+    Map MimeMap;
+
+    BufferedReader ClientBufferedReader;
+    DataOutputStream ClientDataOutputStream;
+
+    HttpRequest(Socket AnfragenSocket, Map MimeTypes) {
         this.ClientSocket = AnfragenSocket;
+        this.MimeMap = MimeTypes;
+        this.ClientBufferedReader = null;
+        this.ClientDataOutputStream = null;
     }
 
     @Override
@@ -189,7 +199,6 @@ final class HttpRequest implements Runnable
     {
         // Wir oeffnen Input- und Outputstreams zu unserem Client
         InputStream ClientInputStream = null;
-        DataOutputStream ClientDataOutputStream = null;
 
         try {
             ClientInputStream = ClientSocket.getInputStream();
@@ -208,20 +217,23 @@ final class HttpRequest implements Runnable
         }
 
         // Wir dekodieren den ClientInputStream und wrappen um ihn einen BufferedReader
-        BufferedReader ClientBufferedReader = new BufferedReader(new InputStreamReader(ClientInputStream));
+        ClientBufferedReader = new BufferedReader(new InputStreamReader(ClientInputStream));
 
+        // Mit diesen Variablen speichern wir unsere Anfrage
         String RequestZeile;
         String AnfrageZeile;
         Map AnfrageMap = new HashMap<>(10);
+        String[] GeteilteRequestZeile = null;
+        String[] GeteilteAnfrageZeile = null;
 
         try {
             // Wir holen uns die Request Zeile
             RequestZeile = ClientBufferedReader.readLine();
+            GeteilteRequestZeile = RequestZeile.split("\\s");
 
             // Wir speichern die komplette Anfrage, aber ohne Requestzeile, in einer Hashmap
             while ((AnfrageZeile = ClientBufferedReader.readLine()).length() != 0) {
-                //MeinZeichenSetzer.append(AnfrageZeile + "\n");
-                String[] GeteilteAnfrageZeile = AnfrageZeile.split("\\s+", 2);
+                GeteilteAnfrageZeile = AnfrageZeile.split("\\s+", 2);
                 if (GeteilteAnfrageZeile.length == 2) {
                     AnfrageMap.put(GeteilteAnfrageZeile[0], GeteilteAnfrageZeile[1]);
                 }
@@ -236,7 +248,39 @@ final class HttpRequest implements Runnable
                 System.err.println("Mehr Probleme beim lesen von Streams zum Client. Breche haerter ab...");
                 ClientSocket.close();
             }
+        } finally {
+            if (GeteilteAnfrageZeile == null) {
+                System.err.println("Unbekannte Probleme beim lesen von Streams zum Client. Breche ab...");
+                try {
+                    ClientBufferedReader.close();
+                    ClientDataOutputStream.close();
+                } catch (IOException ex) {
+                    System.err.println("Viel Mehr Probleme beim lesen von Streams zum Client. Breche haerter ab...");
+                    return;
+                }
+            }
         }
+
+        if (GeteilteRequestZeile.length != 3) {
+            System.out.println("Ungueltigen Request-Line bekommen. Breche ab...");
+            BrecheAllesAb();
+            return;
+        }
+
+        switch (GeteilteRequestZeile[0]) {
+            case "GET":
+                break;
+            case "HEAD":
+                break;
+            case "POST":
+                break;
+            default:
+                System.out.println("Ungueltige Request-Method bekommen. Breche ab...");
+                BrecheAllesAb();
+                return;
+        }
+
+
 
 
 
@@ -246,13 +290,55 @@ final class HttpRequest implements Runnable
 
 
         // Wir schliessen all unsere Streams und den Socket
-        try {
-            ClientDataOutputStream.close();
-            ClientBufferedReader.close();
-            ClientSocket.close();
-        } catch (IOException e) {
-            System.err.println("Probleme beim schliessen der Streams/des Sockets. Breche ab...");
-            return;
+        BrecheAllesAb();
+    }
+
+    /**
+     * Versucht alle noch offenen Streams und den Socket zu schliessen.
+     */
+    private void BrecheAllesAb() {
+        // Die Errorflag wird gestzt, wenn es das schliessen eines Teils fehlschlaegt
+        boolean Errorflag = false;
+
+        // Zuerst versuchen wir den Bufferedreader und damit auch den Inputstream zu schliessen
+        if (!ClientSocket.isInputShutdown()) {
+            if (ClientBufferedReader != null) {
+                try {
+                    ClientBufferedReader.close();
+                } catch (IOException e) {
+                    System.err.println("Fehler beim schliessen des Bufferedreaders.");
+                    Errorflag = true;
+                }
+            }
+        }
+
+        // Nun versuchen wir den Dataoutputstream zu schliessen
+        if (!ClientSocket.isOutputShutdown()) {
+            if (ClientDataOutputStream != null) {
+                try {
+                    ClientDataOutputStream.close();
+                } catch (IOException e) {
+                    Errorflag = true;
+                    System.err.println("Fehler beim schliessen des Dataoutputstreams.");
+                }
+            }
+        }
+
+        // Jetzt bleibt es nur noch den Socket zu schliessen
+        if (!ClientSocket.isClosed()) {
+            try {
+                ClientSocket.close();
+            } catch (IOException e) {
+                System.err.println("Fehler beim schliessen des Sockets.");
+            }
+        }
+
+        if (Errorflag || !ClientSocket.isClosed()) {
+            System.err.println("Manche Verbindungen konnten nicht terminiert werden. Bei Problemen starten sie den Server neu");
         }
     }
+
+
+
+
 }
