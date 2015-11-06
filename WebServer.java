@@ -67,11 +67,11 @@ public final class WebServer
             } catch (SecurityException e) {
                 System.err.println("Nicht genug Rechte zum bearbeiten der Anfragen. Breche ab...");
                 System.exit(-1);
-            } finally {
-                if (SekundaerSocket == null) {
-                    System.err.println("Unbekannter Fehler beim bearbeiten einer Anfrage aufgetreten. Warte auf neuen Versuch...");
-                    continue;
-                }
+            }
+
+            if (SekundaerSocket == null) {
+                System.err.println("Unbekannter Fehler beim bearbeiten einer Anfrage aufgetreten. Warte auf neuen Versuch...");
+                continue;
             }
 
             // wir lagern die Anfrageverarbeitung in die HttpRequest Klasse aus
@@ -90,22 +90,22 @@ public final class WebServer
      * @return Bei erfolg Hashmap mit Mime-Types, sonst Nullpointer
      */
     private static ConcurrentHashMap ParseMimeTypes(String PfadZuMimeTypes) {
-        Path MimeTypePfad = null;
+        Path MimeTypePfad;
 
         try {
             MimeTypePfad = Paths.get(PfadZuMimeTypes);
         } catch (InvalidPathException e) {
             System.err.println("Ungueltiger Dateipfad zur Mime Datei. Lese Datei nicht ein...");
             return null;
-        } finally {
-            if (MimeTypePfad == null) {
-                System.err.println("Unbekannter Fehler beim Parsen des Mime Datei Pfads. Lese Datei nicht ein...");
-                return null;
-            }
+        }
+
+        if (MimeTypePfad == null) {
+            System.err.println("Unbekannter Fehler beim Parsen des Mime Datei Pfads. Lese Datei nicht ein...");
+            return null;
         }
 
         // Wir zaehlen die Zeilen der einzulesenden Datei, um eine effiziente groesse fuer unsere Hashmap abzuschaetzen
-        long ZeilenAnzahl = 0;
+        long ZeilenAnzahl;
         try {
             ZeilenAnzahl = Files.lines(MimeTypePfad).count();
         } catch (IOException e) {
@@ -114,11 +114,11 @@ public final class WebServer
         } catch (SecurityException e) {
             System.err.println("Nicht genug Rechte zum lesen der Mime Datei. Lese Datei nicht ein...");
             return null;
-        } finally {
-            if (ZeilenAnzahl == 0) {
-                System.err.println("Mime Datei ist leer oder anderer Fehler. Lese Datei nicht ein...");
-                return null;
-            }
+        }
+
+        if (ZeilenAnzahl == 0) {
+            System.err.println("Mime Datei ist leer oder anderer Fehler. Lese Datei nicht ein...");
+            return null;
         }
 
         /* Wir erstellen unsere Hashmap. Sie wird dynamisch hochskalieren ind groesse wenn benoetigt.
@@ -225,12 +225,12 @@ final class HttpRequest implements Runnable
             }
             ClientSocket.close();
             return;
-        } finally {
-            if (ClientInputStream == null || ClientDataOutputStream == null) {
-                System.err.println("Seltsame Probleme beim aufbauen von Streams zum Client. Breche ab...");
-                BrecheAllesAb();
-                return;
-            }
+        }
+
+        if (ClientInputStream == null || ClientDataOutputStream == null) {
+            System.err.println("Seltsame Probleme beim aufbauen von Streams zum Client. Breche ab...");
+            BrecheAllesAb();
+            return;
         }
 
         // Wir dekodieren den ClientInputStream und wrappen um ihn einen BufferedReader
@@ -248,7 +248,7 @@ final class HttpRequest implements Runnable
         String RequestZeile;
         String AnfrageZeile;
         AnfrageMap = new HashMap<>(10);
-        String[] GeteilteRequestZeile = null;
+        String[] GeteilteRequestZeile;
         String[] GeteilteAnfrageZeile = null;
 
         try {
@@ -264,25 +264,18 @@ final class HttpRequest implements Runnable
                 }
             }
         } catch (IOException e) {
-            System.err.println("Probleme beim lesen von Streams zum Client. Breche ab...");
+            BrecheAllesAb();
+            return;
+        }
+
+        if (GeteilteAnfrageZeile == null) {
+            System.err.println("Unbekannte Probleme beim lesen von Streams zum Client. Breche ab...");
             try {
                 ClientBufferedReader.close();
                 ClientDataOutputStream.close();
-                ClientSocket.close();
             } catch (IOException ex) {
-                System.err.println("Mehr Probleme beim lesen von Streams zum Client. Breche haerter ab...");
-                ClientSocket.close();
-            }
-        } finally {
-            if (GeteilteAnfrageZeile == null) {
-                System.err.println("Unbekannte Probleme beim lesen von Streams zum Client. Breche ab...");
-                try {
-                    ClientBufferedReader.close();
-                    ClientDataOutputStream.close();
-                } catch (IOException ex) {
-                    System.err.println("Viel Mehr Probleme beim lesen von Streams zum Client. Breche haerter ab...");
-                    return;
-                }
+                System.err.println("Viel Mehr Probleme beim lesen von Streams zum Client. Breche haerter ab...");
+                return;
             }
         }
 
