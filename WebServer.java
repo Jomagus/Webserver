@@ -461,6 +461,7 @@ final class HttpRequest implements Runnable
                 String PostAnfrage = AnfragenZusammensetzer.toString();
 
                 //TODO  Das hier gut testen und was mit der Post Anfrage anfangen
+                // Vielleicht einfach an txt Datei an URI appenden?
                 System.out.println(PostAnfrage);
 
                 Header = "HTTP/1.0 200 OK" + CRLF;
@@ -541,7 +542,13 @@ final class HttpRequest implements Runnable
             ClientIP = "Unbekannt";
         }
 
-        String UserAgent = AnfrageMap.get("User-Agent:").toString();
+        String UserAgent;
+        try {
+            UserAgent = AnfrageMap.get("User-Agent:").toString();
+        } catch (NullPointerException e) {
+            UserAgent = null;
+        }
+
         if (UserAgent == null) {
             UserAgent = "Unbekannt";
         }
