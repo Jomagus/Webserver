@@ -182,11 +182,17 @@ final class HttpRequest implements Runnable
     BufferedReader ClientBufferedReader;
     DataOutputStream ClientDataOutputStream;
 
+    /**
+     * Wahr wenn der Inputstream mit UTF8 dekodiert wird.
+     */
+    boolean UTF8EncodingAktiv;
+
     HttpRequest(Socket AnfragenSocket, Map MimeTypes) {
         this.ClientSocket = AnfragenSocket;
         this.MimeMap = MimeTypes;
         this.ClientBufferedReader = null;
         this.ClientDataOutputStream = null;
+        this.UTF8EncodingAktiv = false;
     }
 
     @Override
@@ -228,7 +234,15 @@ final class HttpRequest implements Runnable
         }
 
         // Wir dekodieren den ClientInputStream und wrappen um ihn einen BufferedReader
-        ClientBufferedReader = new BufferedReader(new InputStreamReader(ClientInputStream));
+        // Wir waehlen UTF-8 ENcoding, um die Content Length bei POST Request zu bestimmen
+        ClientBufferedReader = null;
+        try {
+            ClientBufferedReader = new BufferedReader(new InputStreamReader(ClientInputStream, "UTF8"));
+            UTF8EncodingAktiv = true;
+        } catch (UnsupportedEncodingException e) {
+            System.err.println("UTF-8 Encoding fuer den Inputstream nicht verfuegbar. Deaktiviere POST Funktionalitaet.");
+            ClientBufferedReader = new BufferedReader(new InputStreamReader(ClientInputStream));
+        }
 
         // Mit diesen Variablen speichern wir unsere Anfrage
         String RequestZeile;
@@ -242,8 +256,7 @@ final class HttpRequest implements Runnable
             RequestZeile = ClientBufferedReader.readLine();
             GeteilteRequestZeile = RequestZeile.split("\\s");
 
-            // Wir speichern die komplette Anfrage, aber ohne Requestzeile, in einer Hashmap
-            //TODO testen ob wir hier bei /r/n /r/n hintereinander Abbrechen und extra Speichern (fuer POST)
+            // Wir speichern die kompletten Anfrage Header, aber ohne Requestzeile, in einer Hashmap
             while ((AnfrageZeile = ClientBufferedReader.readLine()).length() != 0) {
                 GeteilteAnfrageZeile = AnfrageZeile.split("\\s+", 2);
                 if (GeteilteAnfrageZeile.length == 2) {
@@ -365,13 +378,15 @@ final class HttpRequest implements Runnable
             case "POST":
                 // Falls der Request keine gueltige Content-Length Angabe macht, wird Error 400 ausgegeben
                 boolean GueltigeAnfrage = false;
+                int InhaltsLaenge = -1;
                 if (AnfrageMap.containsKey("Content-Length:")) {
-                    int InhaltsLaenge = Integer.parseInt((String) AnfrageMap.get("Content-Length:"));
+                    InhaltsLaenge = Integer.parseInt((String) AnfrageMap.get("Content-Length:"));
                     if (InhaltsLaenge >= 0) {
                         GueltigeAnfrage = true;
                     }
                 }
 
+                // Eine POST Anfrage muss eine gueltige Content Length haben
                 if (!GueltigeAnfrage) {
                     Header = "HTTP/1.0 400 Bad Request" + CRLF + "Content-type: text/html" + CRLF;
                     String FehlerSeite = GeneriereErrorSeite("400 Bad Request");
@@ -386,9 +401,39 @@ final class HttpRequest implements Runnable
                     return;
                 }
 
-                // Nun bearbeiten wir die eigentlich Anfrage
+                // Wenn der Inputstream nicht mit UTF8 dekodiert wird, koennen wir die Content Length nicht bestimmen
+                if (!UTF8EncodingAktiv) {
+                    Header = "HTTP/1.0 500 Internal Server Error" + CRLF + "Content-type: text/html" + CRLF;
+                    String FehlerSeite = GeneriereErrorSeite("500 Internal Server Error");
+                    try {
+                        ClientDataOutputStream.writeBytes(Header);
+                        ClientDataOutputStream.writeBytes(CRLF);
+                        ClientDataOutputStream.writeBytes(FehlerSeite);
+                        ClientDataOutputStream.flush();
+                    } catch (IOException e) {
+                        System.err.println("Fehler beim Senden eines 500 Fehlers. Breche ab...");
+                    }
+                    return;
+                }
 
-                //TODO lese POST Daten aus Buffered Writer und gebe bei falschem Content-Type Error aus
+                /* Nun bearbeiten wir die eigentlich Anfrage. Dazu muessen wir den Request
+                * Body lesen. Dieser ist noch im BufferedReader, da wir das lesen nachdem wir
+                * mit dem Header durch waren eingestellt haben.
+                * Wenn wir hier ankommen, wissen wir, dass der Stream mit UTF8 formatiert ist.
+                * Das bedeutet, dass ein Zeichen 8 Bit lang ist. Die Content Length aus dem POST
+                * Header ist eine Ganzzahl die die Anzahl gesendeter Octets angibt. Wir koennen also
+                * einfach Zeichen zahlen. */
+
+                StringBuilder AnfragenZusammensetzer = new StringBuilder();
+                int GelesenesZeichen;
+                for (int i = 0; i < InhaltsLaenge; i++) {
+                    // Wir koennen nur int lesen, daher casten wir spaeter in auf char
+                    GelesenesZeichen = ClientInputStream.read();
+                    AnfragenZusammensetzer.append((char) GelesenesZeichen);
+                }
+                String PostAnfrage = AnfragenZusammensetzer.toString();
+
+                //TODO  Das hier gut testen
 
                 break;
             default:
@@ -488,7 +533,7 @@ final class HttpRequest implements Runnable
         int PunktPosition = DateiName.lastIndexOf(".");
         String DateiEndung;
         try {
-            DateiEndung = DateiName.substring(PunktPosition+1);
+            DateiEndung = DateiName.substring(PunktPosition+1).toLowerCase();
         } catch (IndexOutOfBoundsException e) {
             DateiEndung = "";
         }
