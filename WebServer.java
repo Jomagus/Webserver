@@ -430,7 +430,7 @@ final class HttpRequest implements Runnable
                 for (int i = 0; i < InhaltsLaenge; i++) {
                     // Wir koennen nur int lesen, daher casten wir spaeter in auf char
                     try {
-                        GelesenesZeichen = ClientInputStream.read();
+                        GelesenesZeichen = ClientBufferedReader.read();
                     } catch (IOException e) {
                         FehlerBeimEinlesen = true;
                         break;
@@ -463,9 +463,18 @@ final class HttpRequest implements Runnable
                 //TODO  Das hier gut testen und was mit der Post Anfrage anfangen
                 System.out.println(PostAnfrage);
 
+                Header = "HTTP/1.0 200 OK" + CRLF;
+                try {
+                    ClientDataOutputStream.writeBytes(Header);
+                    ClientDataOutputStream.writeBytes(CRLF);
+                    ClientDataOutputStream.flush();
+                } catch (IOException e) {
+                    System.err.println("Fehler beim Senden des 200 OK fuer POST. Breche ab...");
+                }
+
                 break;
             default:
-                Header = "HTTP/1.0 501 Not Implemented";
+                Header = "HTTP/1.0 501 Not Implemented" + CRLF;
                 try {
                     ClientDataOutputStream.writeBytes(Header);
                     ClientDataOutputStream.writeBytes(CRLF);
