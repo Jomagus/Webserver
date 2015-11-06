@@ -424,16 +424,44 @@ final class HttpRequest implements Runnable
                 * Header ist eine Ganzzahl die die Anzahl gesendeter Octets angibt. Wir koennen also
                 * einfach Zeichen zahlen. */
 
+                boolean FehlerBeimEinlesen = false;
                 StringBuilder AnfragenZusammensetzer = new StringBuilder();
-                int GelesenesZeichen;
+                int GelesenesZeichen = -1;
                 for (int i = 0; i < InhaltsLaenge; i++) {
                     // Wir koennen nur int lesen, daher casten wir spaeter in auf char
-                    GelesenesZeichen = ClientInputStream.read();
+                    try {
+                        GelesenesZeichen = ClientInputStream.read();
+                    } catch (IOException e) {
+                        FehlerBeimEinlesen = true;
+                        break;
+                    } finally {
+                        if (GelesenesZeichen == -1) {
+                            FehlerBeimEinlesen = true;
+                            break;
+                        }
+                    }
                     AnfragenZusammensetzer.append((char) GelesenesZeichen);
                 }
+
+                // Falls ein Fehler beim Einlesen des POST Requests aufgetreten ist, geben wir eine Error Response
+                if (FehlerBeimEinlesen) {
+                    Header = "HTTP/1.0 500 Internal Server Error" + CRLF + "Content-type: text/html" + CRLF;
+                    String FehlerSeite = GeneriereErrorSeite("500 Internal Server Error");
+                    try {
+                        ClientDataOutputStream.writeBytes(Header);
+                        ClientDataOutputStream.writeBytes(CRLF);
+                        ClientDataOutputStream.writeBytes(FehlerSeite);
+                        ClientDataOutputStream.flush();
+                    } catch (IOException e) {
+                        System.err.println("Fehler beim Senden eines 500 Fehlers. Breche ab...");
+                    }
+                    return;
+                }
+
                 String PostAnfrage = AnfragenZusammensetzer.toString();
 
-                //TODO  Das hier gut testen
+                //TODO  Das hier gut testen und was mit der Post Anfrage anfangen
+                System.out.println(PostAnfrage);
 
                 break;
             default:
