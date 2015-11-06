@@ -335,7 +335,7 @@ final class HttpRequest implements Runnable
                 //Falls die Datei existiert, bereiten wir sie fuer den Versand vor, dazu oeffnen wir einen Filestream
                 String DateiName = "." + GeteilteRequestZeile[1];
 
-                FileInputStream DateiStrom = null;
+                FileInputStream DateiStrom;
                 try {
                     DateiStrom = new FileInputStream(DateiName);
                 } catch (Exception e) {
@@ -345,7 +345,7 @@ final class HttpRequest implements Runnable
 
                 // Wir erstellen noch einen Buffer fuer die eigentliche Datei
                 byte[] Buffer = new byte[1024];
-                int bytes = 0;
+                int bytes;
 
                 // Nun versenden wir alle Daten
                 try {
@@ -426,7 +426,7 @@ final class HttpRequest implements Runnable
 
                 boolean FehlerBeimEinlesen = false;
                 StringBuilder AnfragenZusammensetzer = new StringBuilder();
-                int GelesenesZeichen = -1;
+                int GelesenesZeichen;
                 for (int i = 0; i < InhaltsLaenge; i++) {
                     // Wir koennen nur int lesen, daher casten wir spaeter in auf char
                     try {
@@ -434,11 +434,10 @@ final class HttpRequest implements Runnable
                     } catch (IOException e) {
                         FehlerBeimEinlesen = true;
                         break;
-                    } finally {
-                        if (GelesenesZeichen == -1) {
-                            FehlerBeimEinlesen = true;
-                            break;
-                        }
+                    }
+                    if (GelesenesZeichen == -1) {
+                        FehlerBeimEinlesen = true;
+                        break;
                     }
                     AnfragenZusammensetzer.append((char) GelesenesZeichen);
                 }
@@ -554,7 +553,7 @@ final class HttpRequest implements Runnable
         }
 
         // Und genieren dann die Fehlerseite
-        String FehlerSeite = "<HTML><HEAD><TITLE>"
+        return  "<HTML><HEAD><TITLE>"
                 + FehlerTitel
                 +"</TITLE></HEAD><BODY>"
                 + FehlerTitel
@@ -562,8 +561,6 @@ final class HttpRequest implements Runnable
                 +"Aufrufende Client IP: " + ClientIP
                 +"<br>User Agent: " + UserAgent
                 +"</BODY></HTML>";
-
-        return FehlerSeite;
     }
 
     /**
