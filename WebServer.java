@@ -599,7 +599,7 @@ final class HttpRequest implements Runnable {
                 }
             } else {
                 try {
-                    ClientSocket.getInputStream().close();
+                    ClientSocket.shutdownInput();
                 } catch (IOException e) {
                     System.err.println("Fehler beim schliessen des Inputstreams.");
                     Errorflag = true;
@@ -611,7 +611,7 @@ final class HttpRequest implements Runnable {
         if (!ClientSocket.isOutputShutdown()) {
             if (ClientDataOutputStream != null) {
                 try {
-                    ClientDataOutputStream.close();
+                    ClientSocket.shutdownOutput();
                 } catch (IOException e) {
                     Errorflag = true;
                     System.err.println("Fehler beim schliessen des Dataoutputstreams.");
