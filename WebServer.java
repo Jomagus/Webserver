@@ -1,21 +1,21 @@
-import java.io.* ;
-import java.net.* ;
+import java.io.*;
+import java.net.ServerSocket;
+import java.net.Socket;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.* ;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-public final class WebServer
-{
+public final class WebServer {
     /**
      * Auf diesem Port wird unser Webserver laufen und horchen.
      */
     final static int PORT = 6789;
 
-    public static void main(String argv[]) throws Exception
-    {
+    public static void main(String argv[]) throws Exception {
         // Wir parsen zuerst die Argumente der Kommandozeile
 
         ConcurrentHashMap MimeTypen = null;
@@ -127,15 +127,15 @@ public final class WebServer
         * Zugriffszeiten zu verkleinern. Wir gehen von etwas weniger als einer Dateiendung pro Zeile in der
         * Mime Datei aus. */
         double SkalierungsFaktor = 1.1;
-        double SkalierteGroesse = SkalierungsFaktor*ZeilenAnzahl;
+        double SkalierteGroesse = SkalierungsFaktor * ZeilenAnzahl;
         ConcurrentHashMap ParsedMimeTypes = new ConcurrentHashMap((int) SkalierteGroesse);
 
         try {
             Files.lines(MimeTypePfad).forEach(Zeile -> {
                 if (!Zeile.isEmpty() && !Zeile.startsWith("#")) {
                     String[] GeparsteZeile = Zeile.split("\\s+");
-                    for (int i = GeparsteZeile.length; i > 1 ; i--) {
-                        ParsedMimeTypes.put(GeparsteZeile[i-1], GeparsteZeile[0]);
+                    for (int i = GeparsteZeile.length; i > 1; i--) {
+                        ParsedMimeTypes.put(GeparsteZeile[i - 1], GeparsteZeile[0]);
                     }
                 }
             });
@@ -154,8 +154,7 @@ public final class WebServer
 
 }
 
-final class HttpRequest implements Runnable
-{
+final class HttpRequest implements Runnable {
     /**
      * Komfortvariable fuer das beantworten der HTTP Requests.
      */
@@ -207,8 +206,7 @@ final class HttpRequest implements Runnable
         }
     }
 
-    private void processHttpRequest() throws Exception
-    {
+    private void processHttpRequest() throws Exception {
         // Wir oeffnen Input- und Outputstreams zu unserem Client
         InputStream ClientInputStream = null;
 
@@ -344,7 +342,7 @@ final class HttpRequest implements Runnable
                 try {
                     ClientDataOutputStream.writeBytes(Header);
                     ClientDataOutputStream.writeBytes(CRLF);
-                    while((bytes = DateiStrom.read(Buffer)) != -1 ) {
+                    while ((bytes = DateiStrom.read(Buffer)) != -1) {
                         ClientDataOutputStream.write(Buffer, 0, bytes);
                     }
                     ClientDataOutputStream.flush();
@@ -480,6 +478,7 @@ final class HttpRequest implements Runnable
 
     /**
      * Generiert einen Header fuer GET oder HEAD Anfrage mit dem gegebenen URI.
+     *
      * @param RequestURI die URI aus der Anfrage
      * @return Den Header fuer die betreffende Anfrage
      */
@@ -546,14 +545,14 @@ final class HttpRequest implements Runnable
         }
 
         // Und genieren dann die Fehlerseite
-        return  "<HTML><HEAD><TITLE>"
+        return "<HTML><HEAD><TITLE>"
                 + FehlerTitel
-                +"</TITLE></HEAD><BODY>"
+                + "</TITLE></HEAD><BODY>"
                 + FehlerTitel
-                +"<br>"
-                +"Aufrufende Client IP: " + ClientIP
-                +"<br>User Agent: " + UserAgent
-                +"</BODY></HTML>";
+                + "<br>"
+                + "Aufrufende Client IP: " + ClientIP
+                + "<br>User Agent: " + UserAgent
+                + "</BODY></HTML>";
     }
 
     /**
@@ -567,7 +566,7 @@ final class HttpRequest implements Runnable
         int PunktPosition = DateiName.lastIndexOf(".");
         String DateiEndung;
         try {
-            DateiEndung = DateiName.substring(PunktPosition+1).toLowerCase();
+            DateiEndung = DateiName.substring(PunktPosition + 1).toLowerCase();
         } catch (IndexOutOfBoundsException e) {
             DateiEndung = "";
         }
