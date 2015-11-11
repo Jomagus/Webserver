@@ -502,7 +502,7 @@ final class HttpRequest implements Runnable {
         // Wir antworten nur mit HTTP/1.0
         String Statusline = "HTTP/1.0 ";
 
-        // Wir geben den Mime Type der Datei im Responde-Header zurueck
+        // Wir geben den Mime Type der Datei im Response-Header zurueck
         String ContentTypeLine = "Content-type: ";
         if (DateiExistiert) {
             Statusline += "200 OK" + CRLF;
