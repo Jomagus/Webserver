@@ -173,7 +173,7 @@ final class HttpRequest implements Runnable {
     /**
      * Map mit Metadaten aus der Anfrage.
      */
-    Map AnfrageMap;
+    Map<String, String> AnfrageMap;
 
     /**
      * Wir speichern unsere Streams Klassenweit, damit wir die Fehlerbehandlung modularisieren und auslagern koennen.
@@ -225,7 +225,7 @@ final class HttpRequest implements Runnable {
             return;
         }
 
-        if (ClientInputStream == null || ClientDataOutputStream == null) {
+        if (ClientInputStream == null) {
             System.err.println("Seltsame Probleme beim aufbauen von Streams zum Client. Breche ab...");
             BrecheAllesAb();
             return;
@@ -371,7 +371,7 @@ final class HttpRequest implements Runnable {
                 boolean GueltigeAnfrage = false;
                 int InhaltsLaenge = -1;
                 if (AnfrageMap.containsKey("Content-Length:")) {
-                    InhaltsLaenge = Integer.parseInt((String) AnfrageMap.get("Content-Length:"));
+                    InhaltsLaenge = Integer.parseInt(AnfrageMap.get("Content-Length:"));
                     if (InhaltsLaenge >= 0) {
                         GueltigeAnfrage = true;
                     }
@@ -535,7 +535,7 @@ final class HttpRequest implements Runnable {
 
         String UserAgent;
         try {
-            UserAgent = AnfrageMap.get("User-Agent:").toString();
+            UserAgent = AnfrageMap.get("User-Agent:");
         } catch (NullPointerException e) {
             UserAgent = null;
         }
