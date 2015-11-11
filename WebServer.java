@@ -18,7 +18,7 @@ public final class WebServer {
     public static void main(String argv[]) throws Exception {
         // Wir parsen zuerst die Argumente der Kommandozeile
 
-        ConcurrentHashMap MimeTypen = null;
+        ConcurrentHashMap<String, String> MimeTypen = null;
         if (argv.length > 0) {
             if (argv[0].contentEquals("-mime")) {
                 if (argv.length == 2) {
@@ -89,7 +89,7 @@ public final class WebServer {
      * @param PfadZuMimeTypes Dateipfad zur zu parsenden Datei
      * @return Bei erfolg Hashmap mit Mime-Types, sonst Nullpointer
      */
-    private static ConcurrentHashMap ParseMimeTypes(String PfadZuMimeTypes) {
+    private static ConcurrentHashMap<String, String> ParseMimeTypes(String PfadZuMimeTypes) {
         Path MimeTypePfad;
 
         try {
@@ -128,7 +128,7 @@ public final class WebServer {
         * Mime Datei aus. */
         double SkalierungsFaktor = 1.1;
         double SkalierteGroesse = SkalierungsFaktor * ZeilenAnzahl;
-        ConcurrentHashMap ParsedMimeTypes = new ConcurrentHashMap((int) SkalierteGroesse);
+        ConcurrentHashMap<String, String> ParsedMimeTypes = new ConcurrentHashMap<>((int) SkalierteGroesse);
 
         try {
             Files.lines(MimeTypePfad).forEach(Zeile -> {
@@ -168,7 +168,7 @@ final class HttpRequest implements Runnable {
     /**
      * Map mit Mime Types um in O(1) passende Typ fuer Antwort zu finden.
      */
-    Map MimeMap;
+    Map<String, String> MimeMap;
 
     /**
      * Map mit Metadaten aus der Anfrage.
@@ -186,7 +186,7 @@ final class HttpRequest implements Runnable {
      */
     boolean UTF8EncodingAktiv;
 
-    HttpRequest(Socket AnfragenSocket, Map MimeTypes) {
+    HttpRequest(Socket AnfragenSocket, Map<String, String> MimeTypes) {
         this.ClientSocket = AnfragenSocket;
         this.MimeMap = MimeTypes;
         this.ClientBufferedReader = null;
@@ -572,7 +572,7 @@ final class HttpRequest implements Runnable {
         }
 
         // Nun muessen wir nur noch unsere Mime Type in der HashMap suchen (in O(1))
-        String MimeType = (String) MimeMap.get(DateiEndung);
+        String MimeType = MimeMap.get(DateiEndung);
         //Falls kein MimeType gefunden worden ist, geben wir die geforderte Standartantwort
         if (MimeType == null) {
             MimeType = "application/octet-stream";
