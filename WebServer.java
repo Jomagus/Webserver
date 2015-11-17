@@ -31,7 +31,15 @@ public final class WebServer {
             }
         }
 
-        //TODO Fallback Mimetypes implementieren
+        //Falls keine Mimetypes uebergeben worden sind, implementieren wir hier einen Fallback
+
+        if (MimeTypen == null) {
+            System.out.println("Keine Mime Types uebergeben. Falle zurueck...");
+            MimeTypen = new ConcurrentHashMap<>(6);
+            MimeTypen.put("html", "text/html");
+            MimeTypen.put("htm", "text/html");
+        }
+
 
 
         // Wir öffnen hier einen neuen Serversocket der auf eingehende Verbindungen wartet
@@ -450,9 +458,10 @@ final class HttpRequest implements Runnable {
 
                 String PostAnfrage = AnfragenZusammensetzer.toString();
 
-                //TODO  Das hier gut testen und was mit der Post Anfrage anfangen
-                // Vielleicht einfach an txt Datei an URI appenden?
+                // Diese POST Implementierung  printet die Anfrage einfach nur auf der Kommandozeile des Servers
+                System.out.println("---- BEGIN POST REQUEST ----");
                 System.out.println(PostAnfrage);
+                System.out.println("----- END POST REQUEST -----");
 
                 Header = "HTTP/1.0 200 OK" + CRLF;
                 try {
@@ -611,10 +620,18 @@ final class HttpRequest implements Runnable {
         if (!ClientSocket.isOutputShutdown()) {
             if (ClientDataOutputStream != null) {
                 try {
-                    ClientSocket.shutdownOutput();
+                    ClientDataOutputStream.flush();
+                    ClientDataOutputStream.close();
                 } catch (IOException e) {
                     Errorflag = true;
                     System.err.println("Fehler beim schliessen des Dataoutputstreams.");
+                }
+            } else {
+                try {
+                    ClientSocket.shutdownOutput();
+                } catch (IOException e) {
+                    Errorflag = true;
+                    System.err.println("Fehler B beim schliessen des Dataoutputstreams.");
                 }
             }
         }
