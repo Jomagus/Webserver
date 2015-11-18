@@ -16,8 +16,8 @@ public final class WebServer {
     final static int PORT = 6789;
 
     public static void main(String argv[]) throws Exception {
-        // Wir parsen zuerst die Argumente der Kommandozeile
 
+        // Wir parsen zuerst die Argumente der Kommandozeile
         ConcurrentHashMap<String, String> MimeTypen = null;
         if (argv.length > 0) {
             if (argv[0].contentEquals("-mime")) {
@@ -32,18 +32,14 @@ public final class WebServer {
         }
 
         //Falls keine Mimetypes uebergeben worden sind, implementieren wir hier einen Fallback
-
         if (MimeTypen == null) {
-            System.out.println("Keine Mime Types uebergeben. Falle zurueck...");
+            System.out.println("Keine Mime Types uebergeben. Falle auf Minimalimplementierung zurueck...");
             MimeTypen = new ConcurrentHashMap<>(6);
             MimeTypen.put("html", "text/html");
             MimeTypen.put("htm", "text/html");
         }
 
-
-
         // Wir öffnen hier einen neuen Serversocket der auf eingehende Verbindungen wartet
-
         ServerSocket PrimaerSocket = null;
         try {
             PrimaerSocket = new ServerSocket(PORT);
@@ -138,6 +134,8 @@ public final class WebServer {
         double SkalierteGroesse = SkalierungsFaktor * ZeilenAnzahl;
         ConcurrentHashMap<String, String> ParsedMimeTypes = new ConcurrentHashMap<>((int) SkalierteGroesse);
 
+        // Wir lesen die Datei Zeile fuer Zeile, parsen keine Kommentarzeilen, splitten die anderen an Leerzeichen und Tabs,
+        // und schreiben den Inhalt dann in unsere Hashmap.
         try {
             Files.lines(MimeTypePfad).forEach(Zeile -> {
                 if (!Zeile.isEmpty() && !Zeile.startsWith("#")) {
@@ -240,13 +238,13 @@ final class HttpRequest implements Runnable {
         }
 
         // Wir dekodieren den ClientInputStream und wrappen um ihn einen BufferedReader
-        // Wir waehlen UTF-8 ENcoding, um die Content Length bei POST Request zu bestimmen
+        // Wir waehlen UTF-8 Encoding, um die Content Length bei POST Request zu bestimmen
         ClientBufferedReader = null;
         try {
             ClientBufferedReader = new BufferedReader(new InputStreamReader(ClientInputStream, "UTF8"));
             UTF8EncodingAktiv = true;
         } catch (UnsupportedEncodingException e) {
-            System.err.println("UTF-8 Encoding fuer den Inputstream nicht verfuegbar. Deaktiviere POST Funktionalitaet.");
+            System.err.println("UTF-8 Encoding fuer den Inputstream nicht verfuegbar. Deaktiviere POST Funktionalitaet...");
             ClientBufferedReader = new BufferedReader(new InputStreamReader(ClientInputStream));
         }
 
@@ -255,6 +253,8 @@ final class HttpRequest implements Runnable {
         String AnfrageZeile;
         AnfrageMap = new HashMap<>(10);
         String[] GeteilteRequestZeile;
+
+        // Das ist eine Zwischenvariable beim einlesen und parsen des Request Headers
         String[] GeteilteAnfrageZeile = null;
 
         try {
@@ -270,19 +270,16 @@ final class HttpRequest implements Runnable {
                 }
             }
         } catch (IOException e) {
+            System.err.println("Unbekannte IO-Probleme beim lesen von Streams zum Client. Breche ab...");
             BrecheAllesAb();
             return;
         }
 
+        // Wir pruefen ob irgendwelche Arkanen Fehler beim parsen aufgetreten sind.
         if (GeteilteAnfrageZeile == null) {
             System.err.println("Unbekannte Probleme beim lesen von Streams zum Client. Breche ab...");
-            try {
-                ClientBufferedReader.close();
-                ClientDataOutputStream.close();
-            } catch (IOException ex) {
-                System.err.println("Viel Mehr Probleme beim lesen von Streams zum Client. Breche haerter ab...");
-                return;
-            }
+            BrecheAllesAb();
+            return;
         }
 
         //************************************************
@@ -410,7 +407,7 @@ final class HttpRequest implements Runnable {
                         ClientDataOutputStream.writeBytes(FehlerSeite);
                         ClientDataOutputStream.flush();
                     } catch (IOException e) {
-                        System.err.println("Fehler beim Senden eines 500 Fehlers. Breche ab...");
+                        System.err.println("Fehler A beim Senden eines 500 Fehlers. Breche ab...");
                     }
                     return;
                 }
@@ -423,22 +420,18 @@ final class HttpRequest implements Runnable {
                 * Header ist eine Ganzzahl die die Anzahl gesendeter Octets angibt. Wir koennen also
                 * einfach Zeichen zahlen. */
 
-                boolean FehlerBeimEinlesen = false;
-                StringBuilder AnfragenZusammensetzer = new StringBuilder();
-                int GelesenesZeichen;
-                for (int i = 0; i < InhaltsLaenge; i++) {
-                    // Wir koennen nur int lesen, daher casten wir spaeter in auf char
-                    try {
-                        GelesenesZeichen = ClientBufferedReader.read();
-                    } catch (IOException e) {
-                        FehlerBeimEinlesen = true;
-                        break;
-                    }
-                    if (GelesenesZeichen == -1) {
-                        FehlerBeimEinlesen = true;
-                        break;
-                    }
-                    AnfragenZusammensetzer.append((char) GelesenesZeichen);
+                boolean FehlerBeimEinlesen = false;                 // wahr, wenn ein Fehler beim lesen des POST Requests auftrat
+                int GeleseneLeange = -1;                            // speichert wieviel wir eingelesen haben (oder -1 bei Fehler)
+                char[] GeleseneZeichen = new char[InhaltsLaenge];   // Buffer fuer den BufferedReader
+
+                try {
+                    GeleseneLeange = ClientBufferedReader.read(GeleseneZeichen,0,InhaltsLaenge);
+                } catch (IOException e) {
+                    FehlerBeimEinlesen = true;
+                }
+
+                if (GeleseneLeange != InhaltsLaenge || GeleseneLeange == -1) {
+                    FehlerBeimEinlesen = true;
                 }
 
                 // Falls ein Fehler beim Einlesen des POST Requests aufgetreten ist, geben wir eine Error Response
@@ -451,14 +444,15 @@ final class HttpRequest implements Runnable {
                         ClientDataOutputStream.writeBytes(FehlerSeite);
                         ClientDataOutputStream.flush();
                     } catch (IOException e) {
-                        System.err.println("Fehler beim Senden eines 500 Fehlers. Breche ab...");
+                        System.err.println("Fehler B beim Senden eines 500 Fehlers. Breche ab...");
                     }
                     return;
                 }
 
-                String PostAnfrage = AnfragenZusammensetzer.toString();
+                String PostAnfrage = new String(GeleseneZeichen);
 
                 // Diese POST Implementierung  printet die Anfrage einfach nur auf der Kommandozeile des Servers
+                // Wir akzeptieren nur String die UTF-8 formatierbar sind!
                 System.out.println("---- BEGIN POST REQUEST ----");
                 System.out.println(PostAnfrage);
                 System.out.println("----- END POST REQUEST -----");
