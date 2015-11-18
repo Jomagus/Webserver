@@ -467,6 +467,46 @@ final class HttpRequest implements Runnable {
                 }
 
                 break;
+            // Wir antworten auch auch auf eine in RFC 2324 definierte HTCPCP (Hyper Text Coffee Pot Control Protocol) Anfrage
+            case "BREW":
+                Header = "HTTP/1.0 418 I'm a teapot" + CRLF + "Content-type: text/plain" + CRLF;
+                String ShortAndStout =
+                        "I'm a little teapot\n"
+                        +"Short and stout\n"
+                        +"Here is my handle\n"
+                        +"Here is my spout\n"
+                        +"When I get all steamed up\n"
+                        +"I just shout\n"
+                        +"Tip me over and pour me out\n"
+                        +"\n"
+                        +"I am a very special pot\n"
+                        +"It is true\n"
+                        +"Here is an example of what I can do\n"
+                        +"I can turn my handle into a spout\n"
+                        +"Tip me over and pour me out\n"
+                        +"\n"
+                        +"I'm a little teapot\n"
+                        +"Short and stout\n"
+                        +"Here is my handle\n"
+                        +"Here is my spout\n"
+                        +"When I get all steamed up\n"
+                        +"I just shout\n"
+                        +"Tip me over and pour me out\n"
+                        +"\n"
+                        +"I am a very special pot\n"
+                        +"It is true\n"
+                        +"Here is an example of what I can do\n"
+                        +"I can turn my handle into a spout\n"
+                        +"Tip me over and pour me out";
+                try {
+                    ClientDataOutputStream.writeBytes(Header);
+                    ClientDataOutputStream.writeBytes(CRLF);
+                    ClientDataOutputStream.writeBytes(ShortAndStout);
+                    ClientDataOutputStream.flush();
+                } catch (IOException e) {
+                    System.err.println("Fehler beim Senden eines 418 Fehlers. Breche ab...");
+                }
+                break;
             default:
                 Header = "HTTP/1.0 501 Not Implemented" + CRLF;
                 try {
