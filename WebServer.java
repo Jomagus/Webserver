@@ -31,9 +31,15 @@ public final class WebServer {
             }
         }
 
-        //Falls keine Mimetypes uebergeben worden sind, implementieren wir hier einen Fallback
+        // Falls keine Mimetypes uebergeben worden sind, suchen wir im aktuellen Verzeichnis
         if (MimeTypen == null) {
-            System.out.println("Keine Mime Types uebergeben. Falle auf Minimalimplementierung zurueck...");
+            System.out.println("Keine Mime Types uebergeben. Suche im Arbeitsverzeichnis...");
+            MimeTypen = ParseMimeTypes("mime.types");
+        }
+
+        // Falls immernoch keine Mimtetypes gefunden wordne sind, implementieren wir hier einen Fallback
+        if (MimeTypen == null) {
+            System.out.println("Keine Mime Types gefunden. Falle auf Minimalimplementierung zurueck...");
             MimeTypen = new ConcurrentHashMap<>(6);
             MimeTypen.put("html", "text/html");
             MimeTypen.put("htm", "text/html");
