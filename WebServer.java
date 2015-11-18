@@ -329,7 +329,7 @@ final class HttpRequest implements Runnable {
                         ClientDataOutputStream.writeBytes(FehlerSeite);
                         ClientDataOutputStream.flush();
                     } catch (Exception e) {
-                        System.err.println("Fehler beim Senden einer GET Anfrage. Breche ab...");
+                        System.err.println("Fehler A beim Senden einer GET Anfrage. Breche ab...");
                     }
                     return;
                 }
@@ -358,7 +358,7 @@ final class HttpRequest implements Runnable {
                     }
                     ClientDataOutputStream.flush();
                 } catch (Exception e) {
-                    System.err.println("Fehler beim Senden einer GET Anfrage. Breche ab...");
+                    System.err.println("Fehler B beim Senden einer GET Anfrage. Breche ab...");
                 } finally {
                     try {
                         DateiStrom.close();
